@@ -1,0 +1,57 @@
+name: Keepalive repository cron workflows
+description: GitHub Action to re-enable repository cron workflows to prevent them from stopping after 60 days
+
+runs:
+  using: composite
+  steps:
+
+    - name: Keepalive
+      shell: bash
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        # https://docs.github.com/en/rest/actions/workflows#list-repository-workflows
+        RESP_CODE=$(curl -w %{http_code} -s -o __response.json \
+        -X GET https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows \
+        -H "Accept: application/vnd.github.v3+json")
+        if [[ $RESP_CODE != "200" ]]; then
+          echo "Unable to read repository workflows - HTTP response code was $RESP_CODE"
+          exit 1
+        fi
+        IDS=$(jq -r .workflows[].id __response.json)
+        if [[ $IDS == "" ]]; then
+          echo "This repository has no workflows"
+          exit 0
+        fi
+        for ID in $IDS; do
+          PTH=$(jq -r ".workflows[] | select(.id==$ID) | .path" __response.json)
+          URL=$(jq -r ".workflows[] | select(.id==$ID) | .html_url" __response.json)
+          URL=${URL//github\.com/raw.githubusercontent.com}
+          URL=${URL//$GITHUB_REPOSITORY\/blob/$GITHUB_REPOSITORY}
+          # Fetch raw workflow yml
+          RESP_CODE=$(curl -w %{http_code} -s -o __response.yml \
+          -X GET $URL \
+          -H "Accept: application/vnd.github.v3+json")
+          if [[ $RESP_CODE != "200" ]]; then
+            echo "Unable to fetch raw content for workflow $PTH with ID $ID from $URL - http response code was $RESP_CODE"
+            echo "Workflow is probably not on default branch"
+            echo "If this workflow runs on a cron, it will not keepalive"
+          else
+            YML=$(cat __response.yml)
+            RX="schedule:\s+- cron:"
+            if ! [[ $YML =~ $RX ]]; then
+              echo "Workflow $PTH with ID $ID does not run on a cron, no need to re-enable"
+            else
+              # https://docs.github.com/en/rest/actions/workflows#enable-a-workflow
+              RESP_CODE=$(curl -w %{http_code} -s -o /dev/null \
+              -X PUT https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$ID/enable \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: token ${{ github.token }}")
+              if [[ $RESP_CODE != "204" ]]; then
+                echo "Unable to enable workflow $PTH with ID $ID - HTTP response code was $RESP_CODE"
+                exit 1
+              fi
+              echo "Re-enabled workflow $PTH with ID $ID"
+            fi
+          fi
+        done
