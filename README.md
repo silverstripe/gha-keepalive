@@ -20,5 +20,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Keepalive
-        uses: silverstripe/gha-keepalive@main
+        uses: silverstripe/gha-keepalive@v1
 ```
