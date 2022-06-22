@@ -9,11 +9,13 @@ There are no inputs for configuring this action - just define your schedule so t
 **.github/workflows/keepalive.yml**
 ```yml
 name: Keepalive
+
 on:
   # Run on a schedule of once per month
   schedule:
     - cron: '0 0 1 * *'
   workflow_dispatch:
+
 jobs:
   keepalive:
     name: Keepalive
