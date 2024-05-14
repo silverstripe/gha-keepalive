@@ -16,6 +16,8 @@ on:
     - cron: '0 0 1 * *'
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   keepalive:
     name: Keepalive
@@ -24,6 +26,8 @@ jobs:
     # Change '<account_name>/' to match the name of the account hosting this repository
     if: (github.event_name == 'schedule' && startsWith(github.repository, '<account_name>/')) || (github.event_name != 'schedule')
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     steps:
       - name: Keepalive
         uses: silverstripe/gha-keepalive@v1
